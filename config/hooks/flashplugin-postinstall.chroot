@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# setup iceweasel flashplugin
+update-flashplugin-nonfree --install
