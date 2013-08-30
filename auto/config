@@ -96,6 +96,6 @@ lb config noauto \
 	--iso-publisher "Kali" \
 	--iso-volume "Kali Live" \
 	--linux-packages linux-image \
-	--bootappend-live "boot=live noconfig=sudo username=root hostname=kali" \
+	--bootappend-live "boot=live noconfig=sudo username=root hostname=darkstar locales=en_GB.UTF-8 keyboard-layouts=gb persistence" \
 	$lb_opts \
 	"$@"
