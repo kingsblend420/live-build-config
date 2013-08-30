@@ -1,0 +1,34 @@
+#if ARCHITECTURES i386 amd64
+# *** GNOME DESKTOP ***
+gnome-core
+gnome-brave-icon-theme
+gnome-shell-extensions
+gnome-orca
+#endif
+
+#if ARCHITECTURES armel armhf
+# *** XFCE DESKTOP ***
+xfce4
+network-manager-gnome
+network-manager
+#endif
+
+# *** KDE DESKTOP ***
+# kde-plasma-desktop
+# kdm
+
+# *** LXDE DESKTOP ***
+# lxde
+
+# *** Enlightenment DR17 DESKTOP ***
+# e17
+
+# *** MATE DESKTOP
+# | NOTE: The mate desktop requires other changes to the live config.
+# | See http://docs.kali.org/live-build/customize-the-kali-desktop-environment
+# | for details
+# xorg
+# mate-archive-keyring
+# mate-core
+# mate-desktop-environment
+
