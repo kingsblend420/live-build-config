@@ -1,0 +1,41 @@
+#!/bin/bash
+
+set -e
+
+# Parse command line options
+while getopts ":n m:" OPT; do
+	case $OPT in
+		n)
+			NO_UPDATE="1"
+		;;
+		m)
+			C_MESSAGE=$OPTARG
+		;;
+		\?)
+			echo "Invalid Option: -$OPTARG" >&2
+			exit 1
+		;;
+		:)
+			echo "-$OPTARG requires parameter."
+			exit 1
+		;;
+	esac
+done
+
+# check if updating version
+if [ -z "$NO_UPDATE" ]; then
+	KALI_CURVERSION=$(ruby getVersion.rb)
+	DARKSTAR_VERSION=$(cat version | cut -d '-' -f 2)
+	DARKSTAR_VERSION=$(( DARKSTAR_VERSION+1 ))
+	echo "$KALI_CURVERSION-$DARKSTAR_VERSION" >./version
+	git add ./version
+fi
+
+# call git commit
+if [ -z "$C_MESSAGE" ]; then
+	git commit
+else
+	git commit -m "$C_MESSAGE"
+fi
+
+exit 0

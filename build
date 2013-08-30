@@ -1,0 +1,141 @@
+#!/bin/sh
+
+set -e
+
+# Versioning
+# version gets updated on each commit via script
+DIST_VERSION="$(cat version)"
+
+# Vars
+BASE_NAME="kali-linux"
+TARGET_DIR="$(dirname $0)/images"
+APT_CACHER="/etc/init.d/apt-cacher-ng"
+
+# Speed up successive builds
+if [ -e $APT_CACHER ]; then
+	${APT_CACHER} start
+	export http_proxy=http://localhost:3142/
+fi
+
+# Set build architecture
+# Default is same as host
+HOST_ARCH="$(dpkg --print-architecture)"
+case "$HOST_ARCH" in
+	i386|amd64)
+		ARCHES="amd64 i386"
+		IMAGE_NAME="binary.hybrid.iso"
+	;;
+	armel|armhf)
+		ARCHES="$HOST_ARCH"
+		IMAGE_NAME="binary.img"
+	;;
+	*)
+		echo "Error: $HOST_ARCH is not supported."
+		exit 1
+	;;
+esac
+
+# Parse command line options
+args=$(getopt -o apd -l all,proposed-updates,kali-dev -- "$@")
+eval set -- "$args"
+while true; do
+	case "$1" in
+		-a|--all)
+			build_all="1"
+			shift 1
+		;;
+		-p|--proposed-updates)
+			build_pu="1"
+			shift 1
+		;;
+		-d|--kali-dev)
+			kali_dev="1"
+			shift 1
+		;;
+		--)
+			shift
+			break
+		;;
+		*)
+			echo "Error: Unknown command-line option: $1" >&2
+			exit 1
+		;;
+	esac
+done
+
+# decide if building single image, or all at once
+if [ -n "$build_all" ]; then
+	echo "Building images for architectures $ARCHES..."
+else
+	echo "Building image for architecture $HOST_ARCH..."
+	ARCHES="$HOST_ARCH"
+fi
+
+# decide if including proposed updates in image
+CONFIG_ARGS="--"
+if [ -n "$build_pu" ]; then
+	echo "Integrating Kali Proposed updated into image."
+	CONFIG_ARGS="$CONFIG_ARGS --proposed-updates"
+fi
+
+# allow using kali-dev as base distribution, instead of stable branch
+if [ -n "$kali_dev" ]; then
+	echo "Using kali-dev as base."
+	CONFIG_ARGS="$CONFIG_ARGS --kali-dev"
+	DIST_VERSION="$DIST_VERSION-dev"
+fi
+
+# check live-build version
+LB_VERSION=$(dpkg-query -f '${Version}' -W live-build)
+if dpkg --compare-versions "$LB_VERSION" lt 3.0~b6; then
+	echo "ERROR: live-build (>= 3.0~b6) required. Installed version: $LB_VERSION" >&2
+	exit 1
+fi
+
+# prepare output directory
+mkdir -p "$TARGET_DIR"
+
+# perform build
+for ARCH in $ARCHES; do
+	echo "[*] Build Started for Architecture $ARCH..."
+	
+	lb clean >prepare.log 2>&1
+	lb config -a $ARCH $CONFIG_ARGS >>prepare.log 2>&1
+	lb build
+	
+	if [ $? -ne 0 ] || [ ! -e $IMAGE_NAME ]; then
+		echo "[-] Build Failed" >&2
+		echo "[-] Last 25 lines of build log:" >&2
+		tail -n 25 binary.log >&2
+		exit 1
+	fi
+	
+	IMAGE_EXT="${IMAGE_EXT:-${IMAGE_NAME##*.}}"
+	TARGET_NAME="$BASE_NAME-$DIST_VERSION-$ARCH.$IMAGE_EXT"
+	
+	# sanity check...
+	if [ -d "$TARGET_DIR" ]; then
+		mv -f "$IMAGE_NAME" "$TARGET_DIR/$TARGET_NAME"
+		mv -f binary.log "$TARGET_DIR/$BASE_NAME-$DIST_VERSION-$ARCH.log"
+	else
+		mv -f "$IMAGE_NAME" "$TARGET_NAME"
+		mv -f binary.log "$BASE_NAME-$DIST_VERSION-$ARCH.log"
+	fi
+	
+	echo "[*] Build Completed => $TARGET_NAME"
+done
+
+# Update checksums
+echo "[*] Updating checksums..."
+OLD_DIR=$PWD
+cd "$TARGET_DIR"
+if [ -e "checksums" ]; then
+	rm -f "checksums"
+fi
+FILES=$(find ./ -type f -not -name "*.log" -printf "%f\n")
+for FILE in $FILES; do
+	sha1sum $FILE >>checksums
+done
+cd "$OLD_DIR"
+
+echo "[+] TaDa! All Done."
